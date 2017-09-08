@@ -4,7 +4,7 @@ A Javascript API for GetStat (https://www.getstat.com), please note this library
 ## Background
 The idea of the library is to be included within your own Projects and I am hoping to include it in a Data Studio Connector relaly soon, however you can invoke it from your Javascript Console in your Browser. To use this you'll need your Stat API Key as well as your Stat Domain (i.e. **XYZ**.getstat.com
 
-This API is provided AS IS and at current in order to get around Access-Control-Origin restrictions I've used a Proxy on line 109, this purely takes an encoded Stat request and forwards it on, nothing is stored.
+This API is provided AS IS and at current in order to get around Access-Control-Origin restrictions I've used a Proxy on line 110, this purely takes an encoded Stat request and forwards it on, nothing is stored.
 
 ## Supports
 Currently the API supports getting all projects belonging to an account, using this to pull a list of sites by project and then keywords for a particular site (up to 500, pagination will be added). Each function is asynchrnous so you can attach a callback function to run your code when the call is complete.
