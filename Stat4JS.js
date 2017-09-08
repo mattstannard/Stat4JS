@@ -1,5 +1,6 @@
 var STAT_API_KEY = "";
 var STAT_API_DOMAIN = "";
+var strJ = "";	// Javascript variable for debugging
 
 function sendRequest(url,callback,postData,SelfRef) {
     var req = createXMLHTTPObject();
