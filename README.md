@@ -9,6 +9,8 @@ This API is provided AS IS and at current in order to get around Access-Control-
 ## Supports
 Currently the API supports getting all projects belonging to an account, using this to pull a list of sites by project and then keywords for a particular site (up to 500, pagination will be added). Each function is asynchrnous so you can attach a callback function to run your code when the call is complete.
 
+The core methods now use promises.
+
 ## Usage
 Include the javascript file Stat4JS.js
 
@@ -65,6 +67,14 @@ Example, to get keywords for first site within a project in the account (with ca
 StatJS.SiteCallback = function(){console.log(StatJS.keywords);};
 StatJSAPI.GetSites(StatJSAPI.sites[0].RequestUrl);
 ```
+### Getting Keywords for a Project and Site
+To get a list of all keywords for a given project and site by name rather than id invoke GetKeywordsByProjectSite. This populates the *keywords* property. 
+
+Currently this reads 500 keywords and can be slow. Pagination is being added.
+
+```
+StatJSAPI.GetKeywordsByProjectSite(ProjectName,SiteName);
+```
 
 ### Outputing a table of keywords
 As an example of how to use the *keywords* array there is a function which products an HTML table string from the keywords downloaded.
@@ -74,3 +84,14 @@ After getting the keywords invoke:
 ```
 StatJSAPI.GetKeywordsAsTable()
 ```
+### Outputing a to Data Studio compatible schema
+The GetKeywordDSSchema takes a Data Studio schema argument and returns a keyword set as a rows compatible with Google Data Studio.
+
+After getting the keywords invoke:
+
+```
+StatJSAPI.GetKeywordDSSchema(inputSchema)
+```
+
+### Data Studio Data Model
+The API includes exampleDataSchema which is the Google Data Studio model it is designed to integrate with.
