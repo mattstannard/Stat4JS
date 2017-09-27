@@ -397,7 +397,7 @@ var StatJSAPI =
 		}
 		else
 		{
-			this.GetDataAsJSONP("projects/list?results=500&format=json").then(function(t)
+			this.GetDataAsJSONP("projects/list?results=500).then(function(t)
 			{
 				jsonProjectList = t;
 				api_ref.projects = [];
