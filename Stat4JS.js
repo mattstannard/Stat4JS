@@ -1,7 +1,70 @@
 var STAT_API_KEY = "";
 var STAT_API_DOMAIN = "";
-var strJ = "";	// Javascript variable for debugging
+var strJ;
 
+/* Data Schema */
+var exampleDataSchema = [
+  {
+    name: 'keywordid',
+    label: 'KeywordId',
+    dataType: 'STRING',
+    semantics: {
+      conceptType: 'DIMENSION'
+    }
+  },
+  {
+    name: 'keyword',
+    label: 'Keyword',
+    dataType: 'STRING',
+    semantics: {
+      conceptType: 'DIMENSION'
+    }
+  },
+  {
+    name: 'searchengine',
+    label: 'SearchEngine',
+    dataType: 'STRING',
+    semantics: {
+      conceptType: 'DIMENSION'
+    }
+  },
+  {
+    name: 'rankdate',
+    label: 'Ranking Date',
+    dataType: 'STRING',
+    semantics: {
+      conceptType: 'DIMENSION'
+    }
+  },
+  {
+    name: 'rankurl',
+    label: 'Ranking URL',
+    dataType: 'STRING',
+    semantics: {
+      conceptType: 'DIMENSION'
+    }
+  },
+  {
+    name: 'ranking',
+    label: 'Ranking',
+    dataType: 'NUMBER',
+    semantics: {
+      conceptType: 'METRIC',
+      isReaggregatable: false
+    }
+  },
+  {
+    name: 'count',
+    label: 'Count',
+    dataType: 'NUMBER',
+    semantics: {
+      conceptType: 'METRIC',
+      isReaggregatable: true
+    }
+  }
+];
+
+/* End Data Schema */
 function sendRequest(url,callback,postData,SelfRef) {
     var req = createXMLHTTPObject();
     if (!req) return;
@@ -24,6 +87,30 @@ function sendRequest(url,callback,postData,SelfRef) {
     }
     if (req.readyState == 4) return;
     req.send(postData);
+}
+
+function makeRequest (method,url) {
+  return new Promise(function (resolve, reject) {
+    var xhr = createXMLHTTPObject();
+    xhr.open(method, url);
+    xhr.onload = function () {
+      if (this.status >= 200 && this.status < 300) {
+        resolve(xhr.response);
+      } else {
+        reject({
+          status: this.status,
+          statusText: xhr.statusText
+        });
+      }
+    };
+    xhr.onerror = function () {
+      reject({
+        status: this.status,
+        statusText: xhr.statusText
+      });
+    };
+    xhr.send();
+  });
 }
 
 var XMLHttpFactories = [
@@ -56,6 +143,7 @@ var StatJSAPI =
 	author : 'Matt Stannard (matt.stannard@4psmarketing.com',
 	api_key : '',
 	api_domain : '',
+	api_http_method : '',
 	debug_mode : true,
 	projects : [],
 	sites : [],
@@ -63,6 +151,10 @@ var StatJSAPI =
 	ProjectCallback : null,
 	SiteCallback : null,
 	KeywordCallback : null,
+	ContextProjectId : 0,
+	ContextSiteId : 0,
+	ContextProjectName : "",
+	ContextSiteName : "",
 	DebugConsole : function(CFunction,Message)
 	{
 		if (this.debug_mode)
@@ -84,131 +176,340 @@ var StatJSAPI =
 		this.DebugConsole("GetStatAPIUrl","Exited function");
 		return(strURL);
 	},
-	GetDataAsJSON : function(API_FUNCTION,CallBackFunction,SelfRef)
+	GetDataAsJSONP : function(API_FUNCTION)
 	{
-		this.DebugConsole("GetDataAsJSON","Entered function");
-		objReturn = null;
-		strURL = this.GetStatAPIUrl();
+		var api_ref = this;
 
-		if (strURL != "")
+		this.DebugConsole("GetDataAsJSONP","Entered function");
+
+		return new Promise(function (resolve, reject) 
 		{
-			strURL = strURL + API_FUNCTION;
-			this.DebugConsole("GetDataAsJSON","API Method: " + strURL);
+			api_ref.DebugConsole("GetDataAsJSONP","Entered Promise");
+
+			var response;
+			var strURL = "";
+
 			
-			if (strURL.indexOf("format=json") == -1)
+			strURL = api_ref.GetStatAPIUrl();
+
+			if (strURL != "")
 			{
-				if (strURL.indexOf("?") == -1)
+				strURL = strURL + API_FUNCTION;
+				api_ref.DebugConsole("GetDataAsJSONP","API Method: " + strURL);
+				
+				if (strURL.indexOf("format=json") == -1)
 				{
-					strURL += "?format=json";
+					if (strURL.indexOf("?") == -1)
+					{
+						strURL += "?format=json";
+					}
+					else
+					{
+						strURL += "&format=json";
+					}
+				}
+
+				strURL = "https://apps.4psmarketing.com/stat/proxy.php?m=" + escape(strURL);
+				api_ref.DebugConsole("GetDataAsJSONP",strURL);
+
+				if (api_ref.api_http_method == 'URLFETCH')
+				{
+					t = UrlFetchApp.fetch(strURL);
+					response = t.getContentText();
+					resolve(JSON.parse(response));
 				}
 				else
 				{
-					strURL += "&format=json";
+					api_ref.DebugConsole("GetDataAsJSONP","Making request");
+					makeRequest("GET",strURL).then(function(t){
+						response = t;
+						resolve(JSON.parse(response));
+					});
 				}
 			}
 
-			strURL = "https://apps.4psmarketing.com/stat/proxy.php?m=" + escape(strURL);
-			this.DebugConsole("GetDataAsJSON",strURL);
-
-			// This is where we need jQuery to make the request
-			this.DebugConsole("GetDataAsJSON","Making HTTP Request");
-			
-			sendRequest(strURL,CallBackFunction,null,SelfRef); 
-			
-
-		}
-
-		this.DebugConsole("GetDataAsJSON","Exited function");
-	},
-	GetProjects_cb : function(req,t)
-	{
-		var objProjects;
-		var strJSON = req.responseText;
-		jsonProjectList = JSON.parse(strJSON);
-		strJ = jsonProjectList;
-
-		t.DebugConsole("GetProjects_cb","Entered function");
-		t.projects = [];
-		jsonProjectList.Response.Result.forEach(function(field){
-			t.projects.push(field);
+			api_ref.DebugConsole("GetDataAsJSONP","Exited Promise");
 		});
 
-		if (t.SiteCallback)
-		{
-			t.ProjectCallback(t);
-		}
-
-		t.DebugConsole("GetProjects_cb","Exited function");		
+		this.DebugConsole("GetDataAsJSONP","Exited function");
 	},
 	GetProjects : function()
 	{
 		this.DebugConsole("GetProjects","Entered function");
+
+		var api_ref = this;
+		var jsonProjectList = null;
+		var strJ = "";
 		if (this.GetStatAPIUrl() != "")
 		{
-			this.GetDataAsJSON("projects/list?results=500",this.GetProjects_cb,this);
-			
+			this.GetDataAsJSONP("projects/list?results=500").then(function(t)
+			{
+				jsonProjectList = t;
+				
+				api_ref.projects = [];
+				jsonProjectList.Response.Result.forEach(function(field){
+					api_ref.projects.push(field);
+				});
+
+				if (api_ref.ProjectCallback)
+				{
+					api_ref.ProjectCallback(api_ref);
+				}
+			});
 		}
 		this.DebugConsole("GetProjects","Exited function");
-	},
-	GetSites_cb : function(req,t)
-	{
-		var objProjects;
-		var strJSON = req.responseText;
-		jsonSiteList = JSON.parse(strJSON);
-		strJ = jsonSiteList;
-
-		t.DebugConsole("GetSites_cb","Entered function");
-		t.sites = [];
-		jsonSiteList.Response.Result.forEach(function(field){
-			t.sites.push(field);
-		});
-
-		if (t.SiteCallback)
-		{
-			t.SiteCallback(t);
-		}
-
-		t.DebugConsole("GetSites_cb","Exited function");		
 	},
 	GetSites : function(SiteRequest)
 	{
 		this.DebugConsole("GetSites","Entered function");
-		if (SiteRequest != "")
-		{
-			this.GetDataAsJSON(SiteRequest,this.GetSites_cb,this);
-		}
-		this.DebugConsole("GetSites","Exited function");
-	},
-	GetKeywords_cb : function(req,t)
-	{
-		var objProjects;
-		var strJSON = req.responseText;
-		jsonKeywordList = JSON.parse(strJSON);
-		strJ = jsonKeywordList;
 
-		t.DebugConsole("GetKeywords_cb","Entered function");
-		t.keywords = [];
-		jsonKeywordList.Response.Result.forEach(function(field){
-			t.keywords.push(field);
+		var api_ref = this;
+		var jsonSiteList = null;
+
+		this.GetDataAsJSONP(SiteRequest).then(function(t)
+		{
+			jsonSiteList = t;
+			api_ref.sites = [];
+
+			try
+			{
+				jsonSiteList.Response.Result.forEach(function(field){
+					api_ref.sites.push(field);
+				});
+			}
+			catch(err)
+			{
+				api_ref.sites.push(jsonSiteList.Response.Result);
+			}
+
+			if (api_ref.SiteCallback)
+			{
+				api_ref.SiteCallback(api_ref);
+			}
 		});
 
-		if (t.KeywordCallback)
-		{
-			t.KeywordCallback(t);
-		}
-
-		t.DebugConsole("GetKeywords_cb","Exited function");		
+		this.DebugConsole("GetSites","Exited function");
 	},
 	GetKeywords : function(KeywordRequest)
 	{
 		this.DebugConsole("GetKeywords","Entered function");
-		if (KeywordRequest != "")
+
+		var api_ref = this;
+		var jsonKeywordList = null;
+		
+		this.GetDataAsJSONP(KeywordRequest).then(function(t)
 		{
-			this.DebugConsole("GetKeywords",KeywordRequest + "&results=500");
-			this.GetDataAsJSON(KeywordRequest + "&results=500",this.GetKeywords_cb,this);
-			// /keywords/list?site_id=3037&start=500&results=500&format=json
-		}
+			jsonKeywordList = t;
+			api_ref.keywords = [];
+			jsonKeywordList.Response.Result.forEach(function(field){
+				api_ref.keywords.push(field);
+			});
+
+			if (api_ref.KeywordCallback)
+			{
+				api_ref.KeywordCallback(api_ref);
+			}
+		});
+
+		
 		this.DebugConsole("GetKeywords","Exited function");
+	},
+	GetKeywordsByProjectSite : function(ProjectName,SiteName)
+	{
+		var api_ref = this;
+		var project_id = 0;
+		var project_request = "";
+		var site_id = 0;
+		var site_request = "";
+
+		this.DebugConsole("GetSiteIdByNames","Entered function");
+
+		// TODO: Increase limit from 500 keywords
+		
+		// Google AppScript doesn't support promises so we do it 
+		// slightly differently, could tidy this up to reduce code duplication
+		if (api_ref.api_http_method == 'URLFETCH')
+		{
+			// Firstly get the projects
+			strURL = api_ref.GetStatAPIUrl();
+			strURL = strURL + "projects/list?results=500&format=json";
+			
+            // Logger.log(strURL);
+			var response = UrlFetchApp.fetch(strURL);
+            jsonProjectList = JSON.parse(response.getContentText());
+			api_ref.projects = [];
+
+			jsonProjectList.Response.Result.forEach(function(field)
+			{
+				api_ref.projects.push(field);
+
+				if (field.Name.toLowerCase() == ProjectName.toLowerCase())
+				{
+					project_id = field.Id;
+					project_request = field.RequestUrl;
+				}
+			});
+
+			Logger.log("Project Id " + project_id);
+
+			if (project_request != "")
+			{
+				strURL = api_ref.GetStatAPIUrl();
+				strURL += project_request;
+				var response = UrlFetchApp.fetch(strURL);
+				jsonSiteList = JSON.parse(response.getContentText());
+				api_ref.sites = [];
+
+				try
+				{
+					jsonSiteList.Response.Result.forEach(function(field){
+						api_ref.sites.push(field);
+						if (field.Name.toLowerCase() == ProjectName.toLowerCase())
+						{
+							site_id = field.Id;
+							site_request = field.RequestUrl;
+						}
+					});
+				}
+				catch(err)
+				{
+					api_ref.sites.push(jsonSiteList.Response.Result);
+					site_id = jsonSiteList.Response.Result.Id;
+					site_request = jsonSiteList.Response.Result.RequestUrl;
+				}
+
+				Logger.log("Site Id " + site_id);
+
+				if (site_request != "")
+				{
+					strURL = api_ref.GetStatAPIUrl();
+					strURL += site_request;
+					var response = UrlFetchApp.fetch(strURL);
+					jsonKeywordList = JSON.parse(response.getContentText());
+
+					api_ref.keywords = [];
+					jsonKeywordList.Response.Result.forEach(function(field){
+						api_ref.keywords.push(field);
+					});
+				}
+			}
+
+		}
+		else
+		{
+			this.GetDataAsJSONP("projects/list?results=500").then(function(t)
+			{
+				jsonProjectList = t;
+				api_ref.projects = [];
+				jsonProjectList.Response.Result.forEach(function(field)
+				{
+					api_ref.projects.push(field);
+
+					if (field.Name.toLowerCase() == ProjectName.toLowerCase())
+					{
+						project_id = field.Id;
+						project_request = field.RequestUrl;
+					}
+				});	
+
+
+				// So we want sites
+				if (project_request != "")
+				{
+					api_ref.DebugConsole("GetSiteIdByNames","Matched field >> " + project_id);
+					api_ref.GetDataAsJSONP(project_request).then(function(r)
+					{
+						jsonSiteList = r;
+						api_ref.sites = [];
+
+						try
+						{
+							jsonSiteList.Response.Result.forEach(function(field){
+								api_ref.sites.push(field);
+								if (field.Name.toLowerCase() == ProjectName.toLowerCase())
+								{
+									site_id = field.Id;
+									site_request = field.RequestUrl;
+								}
+							});
+						}
+						catch(err)
+						{
+							api_ref.sites.push(jsonSiteList.Response.Result);
+							site_id = jsonSiteList.Response.Result.Id;
+							site_request = jsonSiteList.Response.Result.RequestUrl;
+						}
+
+						// So we want keywords for a site
+						if (site_request != "")
+						{
+							api_ref.DebugConsole("GetSiteIdByNames","Matched field >> " + site_id);
+							api_ref.GetDataAsJSONP(site_request).then(function(s)
+							{
+								jsonKeywordList = s;
+								api_ref.keywords = [];
+
+								jsonKeywordList.Response.Result.forEach(function(field){
+									api_ref.keywords.push(field);
+								});
+
+							});
+						}
+
+					});
+				}
+
+
+
+			
+			});
+		}
+	},
+	GetKeywordDSSchema : function(dataSchema)
+	{
+		// Return a schema for Data Studio
+		var data = [];
+		
+		if (this.keywords.length > 0)
+		{
+			this.keywords.forEach(function(field){
+				var values = [];
+				dataSchema.forEach(function(sField) {
+					switch(sField.name) {
+						case 'keywordid' : 
+							values.push(field.Id);
+							break;
+						case 'keyword' :
+							values.push(field.Keyword);
+							break;
+						case 'searchengine' :
+							values.push('Google');
+							break;
+						case 'rankdate' :
+							values.push(field.KeywordRanking.date);
+							break;
+						case 'rankurl' :
+							values.push(field.KeywordRanking.Google.Url);
+							break;
+						case 'ranking' :
+							values.push(field.KeywordRanking.Google.Rank);
+							break;
+                        case 'count' :
+                            values.push(1);
+                            break;
+					}
+				});
+
+                if (field.KeywordRanking.Google.Rank != null)
+                {
+                  data.push({
+                    values: values
+                  });
+                }
+			});
+		}
+
+		return(data);
 	},
 	GetKeywordsAsTable : function()
 	{
